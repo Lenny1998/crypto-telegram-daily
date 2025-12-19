@@ -140,8 +140,8 @@ def main():
     lines = []
     lines.append(f"<b>币圈早报</b>（北京时间 {now}）")
     lines.append("")
-    lines.append("🧭 <b>情绪</b>")
-    lines.append(f"• 恐慌指数：<b>{fg_now_v}</b>｜昨日 {fg_y_v}｜上周 {fg_w_v}")
+    # lines.append("🧭 <b>情绪</b>")
+    # lines.append(f"• 恐慌指数：<b>{fg_now_v}</b>｜昨日 {fg_y_v}｜上周 {fg_w_v}")
     lines.append("")
     lines.append("🔥 <b>爆量 Meme 观察</b>（按24h成交量）")
     if not items:
