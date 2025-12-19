@@ -11,3 +11,14 @@ watchlist:
 
 max_meme_items: 5
 max_topics: 5
+max_news_items: 5
+
+# 币圈新闻RSS源（支持多个源，会自动去重）
+# 中文新闻源
+news_sources:
+  - "https://www.jinse.com/rss.xml"  # 金色财经
+  - "https://www.blockbeats.info/rss"  # 律动BlockBeats
+  - "https://techflowpost.mirror.xyz/feed/atom"  # 深潮TechFlow
+  # 可以添加更多中文RSS源，例如：
+  # - "https://www.bishijie.com/rss"  # 币世界
+  # - "https://www.8btc.com/feed"  # 8btc

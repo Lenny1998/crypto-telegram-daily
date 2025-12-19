@@ -1,6 +1,8 @@
 import os
 import requests
 import yaml
+import feedparser
+import re
 from datetime import datetime, timezone, timedelta
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -116,6 +118,58 @@ def load_yaml(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+def clean_html(text: str) -> str:
+    """移除HTML标签和多余空白"""
+    if not text:
+        return ""
+    # 移除HTML标签
+    text = re.sub(r'<[^>]+>', '', text)
+    # 移除多余的空白字符
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+def fetch_crypto_news(rss_urls: list, max_items: int = 5) -> list:
+    """从多个RSS源抓取币圈新闻"""
+    all_news = []
+    
+    for rss_url in rss_urls:
+        try:
+            feed = feedparser.parse(rss_url)
+            if feed.bozo and feed.bozo_exception:
+                continue
+            
+            for entry in feed.entries[:max_items]:
+                title = clean_html(entry.get("title", ""))
+                link = entry.get("link", "")
+                summary = clean_html(entry.get("summary", ""))
+                
+                # 截断过长的摘要
+                if len(summary) > 150:
+                    summary = summary[:150] + "..."
+                
+                if title:
+                    all_news.append({
+                        "title": title,
+                        "link": link,
+                        "summary": summary,
+                        "source": feed.feed.get("title", "未知来源")
+                    })
+        except Exception as e:
+            # 静默失败，继续处理其他源
+            continue
+    
+    # 去重（基于标题）
+    seen_titles = set()
+    unique_news = []
+    for news in all_news:
+        title_lower = news["title"].lower()
+        if title_lower not in seen_titles:
+            seen_titles.add(title_lower)
+            unique_news.append(news)
+    
+    # 返回前max_items条
+    return unique_news[:max_items]
+
 def main():
     tz_bj = timezone(timedelta(hours=8))
     now = datetime.now(tz_bj).strftime("%Y-%m-%d %H:%M")
@@ -124,6 +178,15 @@ def main():
     topics = (load_yaml("hot_topics.yaml") or {}).get("topics", [])
 
     (fg_now_v, fg_now_c), (fg_y_v, fg_y_c), (fg_w_v, fg_w_c) = get_fear_greed()
+    
+    # 抓取新闻
+    news_sources = cfg.get("news_sources", [])
+    news_items = []
+    if news_sources:
+        news_items = fetch_crypto_news(
+            news_sources, 
+            max_items=cfg.get("max_news_items", 5)
+        )
 
     # meme list
     items = []
@@ -165,6 +228,31 @@ def main():
             if s.get("pair_url"):
                 lines.append(f"• {s['symbol']}: {s['pair_url']}")
 
+    # news section
+    if news_items:
+        lines.append("")
+        lines.append("📰 <b>币圈新闻</b>")
+        for news in news_items:
+            title = news["title"]
+            link = news["link"]
+            summary = news.get("summary", "")
+            source = news.get("source", "")
+            
+            if link:
+                news_line = f"• <b>{title}</b>"
+                if summary:
+                    news_line += f"\n  {summary}"
+                if source:
+                    news_line += f"\n  <a href=\"{link}\">来源：{source}</a>"
+                else:
+                    news_line += f"\n  <a href=\"{link}\">查看详情</a>"
+                lines.append(news_line)
+            else:
+                if summary:
+                    lines.append(f"• <b>{title}</b>：{summary}")
+                else:
+                    lines.append(f"• <b>{title}</b>")
+    
     # hot narrative section (manual list you edit)
     lines.append("")
     lines.append("📣 <b>热门叙事/刷屏</b>")
@@ -182,12 +270,12 @@ def main():
             else:
                 lines.append(f"• {str(t).strip()}")
     else:
-        lines.append("• （在 hot_topics.yaml 里填：例如“币安 UTF-8 编码测试→中文 meme 拉升”等）")
+        lines.append("• （在 hot_topics.yaml 里填：例如「币安 UTF-8 编码测试→中文 meme 拉升」等）")
 
     # footer
     lines.append("")
     lines.append("—")
-    lines.append("注：Meme 数据来自 Dexscreener（按最液态交易对）；指数来自 Alternative.me。")
+    lines.append("注：Meme 数据来自 Dexscreener（按最液态交易对）；指数来自 Alternative.me；新闻来自 RSS 源。")
 
     tg_send_html("\n".join(lines))
 
